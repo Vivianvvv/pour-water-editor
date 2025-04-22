@@ -604,56 +604,42 @@
                 return;
             }
             
-            // 瓶子数量 = 总字段数 - 4(id,target,time,cost)
-            const bottleCount = header.length - 4;
+            // 找到瓶子字段的起始位置和数量
+            const bottleStartIndex = 4; // 从第5列开始是瓶子数据 (bottle1)
+            const bottleCount = header.length - bottleStartIndex;
             
-            // 从第二行开始解析关卡数据
+            // 解析每一行数据
             for (let i = 1; i < lines.length; i++) {
                 const line = lines[i].trim();
-                if (line === '') continue;
+                if (!line) continue; // 跳过空行
                 
-                const parts = line.split(',');
-                if (parts.length < 4 + bottleCount) {
-                    console.warn(`第${i}行数据不完整，跳过`);
-                    continue;
-                }
+                const columns = line.split(',');
+                if (columns.length < bottleStartIndex + 1) continue; // 至少需要有一个瓶子数据
                 
-                // 创建关卡对象
                 const level = {
-                    id: parseInt(parts[0]) || 0,
-                    target: parseInt(parts[1]) || 1,
-                    time: parseInt(parts[2]) || 60,
-                    cost: parseInt(parts[3]) || 3,
+                    id: parseInt(columns[0]) || i,
+                    target: parseInt(columns[1]) || 3,
+                    time: parseInt(columns[2]) || 0,
+                    cost: parseInt(columns[3]) || 0,
                     bottles: []
                 };
                 
-                // 解析瓶子数据
+                // 解析每个瓶子数据
                 for (let j = 0; j < bottleCount; j++) {
-                    const bottleData = parts[4 + j];
-                    if (!bottleData || bottleData === '-1') {
-                        continue; // 跳过空瓶子
-                    }
+                    if (bottleStartIndex + j >= columns.length) break;
                     
-                    try {
-                        const bottleParts = bottleData.split(';');
+                    const bottleData = columns[bottleStartIndex + j].split(';');
+                    if (bottleData.length >= 3) {
+                        // 确保瓶子类型至少为1，不允许使用类型0
+                        let bottleType = parseInt(bottleData[0]) || 1;
+                        if (bottleType === 0) bottleType = 1;
                         
-                        if (bottleParts.length >= 3) {
-                            const bottleType = parseInt(bottleParts[0]) || 1;
-                            const initialWater = parseInt(bottleParts[1]) || 0; // 初始水量
-                            const targetWater = parseInt(bottleParts[2]) || 0;  // 目标水量
-                            
-                            // 瓶子容量通常是4，由类型决定
-                            const bottleCapacity = 4;
-                            
-                            level.bottles.push({
-                                type: bottleType,
-                                capacity: bottleCapacity,
-                                initialWater: initialWater,
-                                targetWater: targetWater
-                            });
-                        }
-                    } catch (error) {
-                        console.warn(`解析瓶子${j}数据出错:`, error);
+                        level.bottles.push({
+                            type: bottleType, // 确保至少为1
+                            capacity: parseInt(bottleData[1]) || 4,
+                            initialWater: parseInt(bottleData[2]) || 0,
+                            targetWater: bottleData.length > 3 ? (parseInt(bottleData[3]) || 0) : 0
+                        });
                     }
                 }
                 
@@ -676,25 +662,46 @@
             updateLevelList();
         }
         
+        // 初始化瓶子类型选择
+        function initBottleTypes() {
+            const bottleTypeSelect = document.getElementById('bottle-type');
+            bottleTypeSelect.innerHTML = '';
+            
+            // 移除类型0，只保留1-7的瓶子类型
+            for (let i = 1; i <= 7; i++) {
+                const option = document.createElement('option');
+                option.value = i;
+                option.textContent = `类型 ${i}`;
+                bottleTypeSelect.appendChild(option);
+            }
+        }
+        
         // 创建默认关卡
         function createDefaultLevel() {
-            const defaultLevel = {
+            const level = {
                 id: 1,
                 target: 3,
-                time: 60,
-                cost: 3,
-                bottles: [
-                    { type: 1, capacity: 4, initialWater: 4, targetWater: 4 },
-                    { type: 2, capacity: 4, initialWater: 4, targetWater: 4 },
-                    { type: 3, capacity: 4, initialWater: 0, targetWater: 0 },
-                    { type: 4, capacity: 4, initialWater: 0, targetWater: 0 },
-                    { type: 5, capacity: 4, initialWater: 0, targetWater: 0 }
-                ]
+                time: 0,
+                cost: 0,
+                bottles: []
             };
             
-            levelList = [defaultLevel];
+            // 添加4个瓶子，使用类型1而不是0
+            for (let i = 0; i < 4; i++) {
+                level.bottles.push({ 
+                    type: 1, 
+                    capacity: 4, 
+                    initialWater: 0, 
+                    targetWater: 0 
+                });
+            }
+            
+            levelList.push(level);
+            currentLevelIndex = 0;
             setCurrentLevel(0);
             updateLevelList();
+            saveLevelData();
+            return level;
         }
         
         // 设置当前关卡
@@ -778,12 +785,12 @@
                 const bottleGraphic = document.createElement('div');
                 bottleGraphic.className = 'bottle-graphic';
                 
-                // 根据类型设置瓶子颜色
-                const bottleTypes = ['空瓶', '红色', '蓝色', '绿色', '黄色', '紫色', '青色', '橙色'];
+                // 根据类型设置瓶子颜色 - 移除空瓶，只保留1-7的类型
+                const bottleTypes = ['未使用', '红色', '蓝色', '绿色', '黄色', '紫色', '青色', '橙色'];
                 const bottleColors = ['#888', '#ff0000', '#0000ff', '#00ff00', '#ffff00', '#ff00ff', '#00ffff', '#ff8800'];
                 
-                // 确保类型是1-7范围，显示为index 1-7
-                const typeIndex = Math.max(0, Math.min(7, bottle.type));
+                // 确保类型是1-7范围
+                const typeIndex = Math.max(1, Math.min(7, bottle.type));
                 bottleGraphic.style.borderColor = bottleColors[typeIndex];
                 
                 // 显示初始水量
@@ -813,18 +820,19 @@
                 const typeSelect = document.createElement('select');
                 typeSelect.className = 'bottle-type-select';
                 
-                // 添加1-7的类型选项
-                bottleTypes.forEach((type, i) => {
+                // 添加1-7的类型选项，不要类型0
+                for (let i = 1; i <= 7; i++) {
                     const option = document.createElement('option');
                     option.value = i;
-                    option.textContent = `${i}:${type}`;
+                    option.textContent = `${i}:${bottleTypes[i]}`;
                     typeSelect.appendChild(option);
-                });
+                }
                 
                 typeSelect.value = typeIndex;
                 typeSelect.addEventListener('change', (e) => {
                     bottle.type = parseInt(e.target.value);
                     updateBottlesUI();
+                    saveLevelData();
                 });
                 
                 typeProperty.appendChild(typeLabel);
@@ -1032,36 +1040,43 @@
         
         // 生成CSV内容
         function generateCSVContent() {
-            // 创建CSV内容 - 使用与原始编辑器相同的格式
-            let csvContent = 'id,target,time,cost';
+            if (levelList.length === 0) return '';
             
-            // 计算需要多少列来保存所有瓶子
-            const maxBottleCount = Math.max(...levelList.map(level => level.bottles.length));
-            
-            // 添加瓶子列头
-            for (let i = 0; i < 10; i++) { // 支持最多10个瓶子
-                csvContent += `,bottle${i + 1}`;
-            }
-            csvContent += '\n';
-            
-            // 添加关卡数据
+            // 找到最大瓶子数量
+            let maxBottleCount = 0;
             levelList.forEach(level => {
-                csvContent += `${level.id},${level.target},${level.time},${level.cost}`;
-                
-                // 添加瓶子数据
-                for (let i = 0; i < 10; i++) {
-                    if (i < level.bottles.length) {
-                        const bottle = level.bottles[i];
-                        // 格式: 瓶子类型;初始水量;目标水量
-                        csvContent += `,${bottle.type};${bottle.initialWater};${bottle.targetWater}`;
-                    } else {
-                        csvContent += ',-1'; // 表示没有瓶子
-                    }
-                }
-                csvContent += '\n';
+                maxBottleCount = Math.max(maxBottleCount, level.bottles.length);
             });
             
-            return csvContent;
+            // 生成标题行
+            let csv = 'id,target,time,cost';
+            for (let i = 1; i <= maxBottleCount; i++) {
+                csv += `,bottle${i}`;
+            }
+            csv += '\n';
+            
+            // 生成每个关卡的数据行
+            levelList.forEach(level => {
+                csv += `${level.id},${level.target},${level.time},${level.cost}`;
+                
+                // 添加瓶子数据
+                for (let i = 0; i < maxBottleCount; i++) {
+                    csv += ',';
+                    if (i < level.bottles.length) {
+                        const bottle = level.bottles[i];
+                        // 确保瓶子类型至少为1
+                        const bottleType = bottle.type === 0 ? 1 : bottle.type;
+                        csv += `${bottleType};${bottle.capacity};${bottle.initialWater}`;
+                        if (bottle.targetWater > 0) {
+                            csv += `;${bottle.targetWater}`;
+                        }
+                    }
+                }
+                
+                csv += '\n';
+            });
+            
+            return csv;
         }
         
         // 显示一个临时消息
