@@ -312,13 +312,16 @@
             position: fixed;
             top: 10px;
             right: 10px;
-            padding: 5px 10px;
-            border-radius: 3px;
-            background-color: #4caf50;
+            padding: 8px 15px;
+            border-radius: 5px;
+            background-color: var(--success-color);
             color: white;
-            font-size: 12px;
+            font-size: 14px;
+            font-weight: bold;
             opacity: 0;
             transition: opacity 0.3s;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
         }
         
         .save-indicator.show {
@@ -328,16 +331,21 @@
         /* 导出指南 */
         .export-guide {
             margin-top: 20px;
-            padding: 10px;
-            background-color: #f8f9fa;
-            border: 1px solid #dee2e6;
+            padding: 15px;
+            background-color: var(--darker-bg);
+            border: 1px solid var(--primary-color);
             border-radius: 4px;
             font-size: 14px;
+            color: var(--text-color);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
         }
         
         .export-guide h3 {
             margin-top: 0;
             margin-bottom: 10px;
+            color: #ffffff;
+            border-bottom: 1px solid var(--primary-color);
+            padding-bottom: 5px;
         }
         
         .export-guide ol {
@@ -346,7 +354,15 @@
         }
         
         .export-guide li {
-            margin-bottom: 5px;
+            margin-bottom: 8px;
+        }
+        
+        .export-guide code {
+            background-color: var(--lighter-bg);
+            padding: 2px 5px;
+            border-radius: 3px;
+            color: #ff9800;
+            font-family: monospace;
         }
     </style>
 </head>
@@ -543,15 +559,18 @@
                     // 尝试合并单个关卡
                     if (mergeLevel(content)) {
                         updateStatus(`成功导入关卡文件: ${file.name}`);
+                        showMessage(`✅ 成功导入关卡文件：${file.name}`);
                     }
                 } else {
                     // 否则作为完整CSV处理
                     processCSVContent(content);
                     updateStatus('成功加载CSV文件: ' + file.name);
+                    showMessage(`✅ 成功导入${levelList.length}个关卡，数据已加载！`);
                 }
             };
             reader.onerror = function() {
                 updateStatus('读取文件失败');
+                showMessage('❌ 读取文件失败，请重试！');
             };
             reader.readAsText(file);
             
@@ -563,6 +582,7 @@
         function processCSVContent(content) {
             if (!content || content.trim() === '') {
                 updateStatus('错误：CSV内容为空');
+                showMessage('❌ 导入失败：CSV内容为空');
                 return;
             }
             
@@ -572,6 +592,7 @@
             // 检查是否有标题行
             if (lines.length < 2) {
                 updateStatus('错误：CSV格式不正确，缺少标题行或数据');
+                showMessage('❌ 导入失败：CSV格式不正确，缺少标题行或数据');
                 return;
             }
             
@@ -579,6 +600,7 @@
             const header = lines[0].trim().split(',');
             if (header.length < 5) { // id,target,time,cost至少需要这些字段
                 updateStatus('错误：CSV头部格式不正确');
+                showMessage('❌ 导入失败：CSV头部格式不正确');
                 return;
             }
             
@@ -642,10 +664,12 @@
                 // 如果未成功加载任何关卡，创建默认关卡
                 createDefaultLevel();
                 updateStatus('未能加载有效关卡，已创建默认关卡');
+                showMessage('⚠️ 未能加载有效关卡，已创建默认关卡');
             } else {
                 // 加载第一个关卡
                 setCurrentLevel(0);
                 updateStatus(`成功导入${levelList.length}个关卡`);
+                showMessage(`✅ 成功导入${levelList.length}个关卡！`);
             }
             
             // 更新UI
@@ -1047,15 +1071,25 @@
             messageBox.style.top = '20px';
             messageBox.style.left = '50%';
             messageBox.style.transform = 'translateX(-50%)';
-            messageBox.style.padding = '10px 20px';
-            messageBox.style.backgroundColor = '#f8f9fa';
-            messageBox.style.border = '1px solid #dee2e6';
+            messageBox.style.padding = '12px 20px';
+            messageBox.style.backgroundColor = '#333';
+            messageBox.style.color = '#fff';
+            messageBox.style.border = '1px solid #4c9afa';
             messageBox.style.borderRadius = '4px';
-            messageBox.style.boxShadow = '0 0.5rem 1rem rgba(0, 0, 0, 0.15)';
+            messageBox.style.boxShadow = '0 4px 15px rgba(0, 0, 0, 0.3)';
             messageBox.style.zIndex = '1000';
+            messageBox.style.fontWeight = 'bold';
+            messageBox.style.fontSize = '16px';
             messageBox.textContent = message;
             
             document.body.appendChild(messageBox);
+            
+            // 添加淡入效果
+            messageBox.style.opacity = '0';
+            messageBox.style.transition = 'opacity 0.3s';
+            setTimeout(() => {
+                messageBox.style.opacity = '1';
+            }, 10);
             
             setTimeout(() => {
                 messageBox.style.opacity = '0';
