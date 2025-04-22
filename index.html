@@ -426,35 +426,42 @@
                 console.log('编辑器初始化中...');
                 initDomReferences();
                 registerEventListeners();
-                
-                // 尝试从localStorage加载之前的关卡数据
-                const savedLevels = localStorage.getItem('pourWaterLevels');
-                if (savedLevels) {
-                    try {
-                        levelList = JSON.parse(savedLevels);
-                        if (Array.isArray(levelList) && levelList.length > 0) {
-                            setCurrentLevel(0);
-                            updateLevelList();
-                            updateStatus('已从本地存储加载关卡数据');
-                        } else {
-                            throw new Error('无效的关卡数据');
+                console.log('开始加载CSV文件');
+                // 首先尝试加载CSV文件
+                loadDefaultCSV()
+                    .then(success => {
+                        if (!success) {
+                            console.log('CSV加载失败，尝试从localStorage恢复');
+                            // 如果CSV加载失败，尝试从localStorage恢复
+                            const savedLevels = localStorage.getItem('pourWaterLevels');
+                            if (savedLevels) {
+                                try {
+                                    levelList = JSON.parse(savedLevels);
+                                    if (Array.isArray(levelList) && levelList.length > 0) {
+                                        setCurrentLevel(0);
+                                        updateLevelList();
+                                        updateStatus('已从本地存储加载关卡数据');
+                                    } else {
+                                        throw new Error('无效的关卡数据');
+                                    }
+                                } catch (e) {
+                                    console.error('加载本地关卡数据失败:', e);
+                                    createDefaultLevel();
+                                    updateStatus('创建了一个默认关卡');
+                                }
+                            } else {
+                                createDefaultLevel();
+                                updateStatus('创建了一个默认关卡');
+                            }
                         }
-                    } catch (e) {
-                        console.error('加载本地关卡数据失败:', e);
-                        createDefaultLevel();
-                        updateStatus('创建了一个默认关卡');
-                    }
-                } else {
-                    createDefaultLevel();
-                    updateStatus('创建了一个默认关卡');
-                }
+                    });
                 
                 // 每5秒自动保存一次数据
                 setInterval(saveToLocalStorage, 5000);
                 
                 // 显示提示信息
                 setTimeout(function() {
-                    showMessage('编辑器已准备就绪，所有更改将自动保存');
+                    showMessage('编辑器已准备就绪，自动保存已启用');
                 }, 1000);
             } catch (error) {
                 console.error('初始化失败:', error);
@@ -1085,13 +1092,15 @@
         // 加载默认CSV文件
         async function loadDefaultCSV() {
             try {
-                // 尝试多个路径加载CSV文件
-                const possiblePaths = ['./level.csv', './data/level.csv'];
+                // 尝试多个可能的路径
+                const possiblePaths = ['./level.csv', 'level.csv', './data/level.csv', '../level.csv'];
                 let loaded = false;
                 
                 for (const csvPath of possiblePaths) {
                     try {
+                        console.log('尝试加载CSV文件:', csvPath);
                         updateStatus('尝试加载CSV文件: ' + csvPath);
+                        
                         const response = await fetch(csvPath);
                         
                         if (!response.ok) {
@@ -1105,6 +1114,7 @@
                             continue;
                         }
                         
+                        console.log('找到CSV文件:', csvPath, '内容长度:', content.length);
                         processCSVContent(content);
                         updateStatus(`已成功从 ${csvPath} 加载CSV文件`);
                         loaded = true;
